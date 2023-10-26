@@ -78,12 +78,12 @@ void MapROS::init() {
   pose_sub_.reset(
       new message_filters::Subscriber<geometry_msgs::PoseStamped>(node_, "/map_ros/pose", 1));
 
-  sync_image_pose_.reset(new message_filters::Synchronizer<MapROS::SyncPolicyImagePose>(
-      MapROS::SyncPolicyImagePose(2), *depth_sub_, *pose_sub_));
-  sync_image_pose_->registerCallback(boost::bind(&MapROS::depthPoseCallback, this, _1, _2));
-  // sync_cloud_pose_.reset(new message_filters::Synchronizer<MapROS::SyncPolicyCloudPose>(
-  //     MapROS::SyncPolicyCloudPose(2), *cloud_sub_, *pose_sub_));
-  // sync_cloud_pose_->registerCallback(boost::bind(&MapROS::cloudPoseCallback, this, _1, _2));
+  // sync_image_pose_.reset(new message_filters::Synchronizer<MapROS::SyncPolicyImagePose>(
+  //     MapROS::SyncPolicyImagePose(2), *depth_sub_, *pose_sub_));
+  // sync_image_pose_->registerCallback(boost::bind(&MapROS::depthPoseCallback, this, _1, _2));
+  sync_cloud_pose_.reset(new message_filters::Synchronizer<MapROS::SyncPolicyCloudPose>(
+      MapROS::SyncPolicyCloudPose(2), *cloud_sub_, *pose_sub_));
+  sync_cloud_pose_->registerCallback(boost::bind(&MapROS::cloudPoseCallback, this, _1, _2));
 
   map_start_time_ = ros::Time::now();
 }

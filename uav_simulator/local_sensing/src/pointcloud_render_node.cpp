@@ -15,6 +15,9 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 
+#include <pcl/common/transforms.h>
+#include <pcl/filters/frustum_culling.h>
+
 #include "backward.hpp"
 #include "opencv2/highgui/highgui.hpp"
 namespace backward {
@@ -33,6 +36,7 @@ int width, height;
 double fx, fy, cx, cy;
 double sensing_horizon, sensing_rate, estimation_rate;
 
+ros::Publisher pub_cloud;
 ros::Publisher pub_depth;
 ros::Publisher pub_pose;
 ros::Subscriber odom_sub;
@@ -42,6 +46,7 @@ ros::Timer local_sensing_timer, estimation_timer;
 bool has_global_map(false);
 bool has_odom(false);
 
+Matrix4d body_pose;
 Matrix4d cam02body;
 Matrix4d cam2world;
 Eigen::Quaterniond cam2world_quat;
@@ -72,7 +77,7 @@ void odometryCallbck(const nav_msgs::Odometry& odom) {
   Pose_receive(1, 3) = request_position(1);
   Pose_receive(2, 3) = request_position(2);
 
-  Matrix4d body_pose = Pose_receive;
+  body_pose = Pose_receive;
   // convert to cam pose
   cam2world = body_pose * cam02body;
   cam2world_quat = cam2world.block<3, 3>(0, 0);
@@ -122,6 +127,7 @@ void pointCloudCallBack(const sensor_msgs::PointCloud2& pointcloud_map) {
   printf("global map has points: %d.\n", cloudIn.points.size());
   has_global_map = true;
 }
+
 
 void renderDepth() {
   double this_time = ros::Time::now().toSec();
@@ -185,15 +191,41 @@ void renderDepth() {
   pub_depth.publish(out_msg.toImageMsg());
 }
 
+void cropPoints() {
+  Matrix4f sensor_pose = body_pose.cast<float>();
+  pcl::PointCloud <pcl::PointXYZ>::Ptr source = 
+    boost::make_shared<pcl::PointCloud <pcl::PointXYZ>>(cloudIn);
+  pcl::PointCloud<pcl::PointXYZ> sensed_pcl;
+  sensor_msgs::PointCloud2 sensed_pcl_msg;
+
+  //camera frustum
+  pcl::FrustumCulling<pcl::PointXYZ> fc;
+  fc.setInputCloud (source);
+  fc.setVerticalFOV (100);
+  fc.setHorizontalFOV (100);
+  fc.setNearPlaneDistance (0.05);
+  fc.setFarPlaneDistance (8);
+  fc.setCameraPose (sensor_pose);
+  fc.filter (sensed_pcl);
+
+  pcl::toROSMsg(sensed_pcl, sensed_pcl_msg);
+  cv_bridge::CvImage out_msg;
+  sensed_pcl_msg.header.stamp = last_odom_stamp;
+  sensed_pcl_msg.header.frame_id = "world";
+  pub_cloud.publish(sensed_pcl_msg);
+}
+
 void renderSensedPoints(const ros::TimerEvent& event) {
   if (!has_global_map)
     return;
-  renderDepth();
+  // renderDepth();
+  cropPoints();
 }
 
 int main(int argc, char** argv) {
   ros::init(argc, argv, "pcl_render");
   ros::NodeHandle nh("~");
+Matrix4d body_pose;
 
   nh.getParam("cam_width", width);
   nh.getParam("cam_height", height);
@@ -215,6 +247,7 @@ int main(int argc, char** argv) {
 
   // publisher depth image and color image
   pub_depth = nh.advertise<sensor_msgs::Image>("/pcl_render_node/depth", 1);
+  pub_cloud = nh.advertise<sensor_msgs::PointCloud2>("/pcl_render_node/cloud", 1);
   pub_pose = nh.advertise<geometry_msgs::PoseStamped>(
       "/pcl_render_node/sensor_pose", 1);
 

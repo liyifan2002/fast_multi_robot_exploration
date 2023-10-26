@@ -50,6 +50,7 @@
 
       <remap from="~global_map" to="/map_generator/global_cloud"/>
       <remap from="~odometry"   to="$(arg odometry_topic)"/>
+      <remap from="/pcl_render_node/cloud" to="/pcl_render_node/cloud_$(arg drone_id)"/>
       <remap from="/pcl_render_node/depth" to="/pcl_render_node/depth_$(arg drone_id)"/>
       <remap from="/pcl_render_node/sensor_pose" to="/pcl_render_node/sensor_pose_$(arg drone_id)"/>
       <remap from="/pcl_render_node/odom" to="/pcl_render_node/odom_$(arg drone_id)"/>
